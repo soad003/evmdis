@@ -108,8 +108,8 @@ func AnalyzeProgram(program *evmdis.Program, calls bool) {
 	}
 
 	if calls {
-			evmdis.FindCalls(program)
-			evmdis.FindSSTOREs(program)
+			evmdis.AnnotateCallsWithConstantAddresses(program)
+			evmdis.AnnotateSSTOREsWithConstantValues(program)
 	}
 }
 

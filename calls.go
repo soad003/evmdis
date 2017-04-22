@@ -47,7 +47,7 @@ func (self *StoreOn) String() string {
   return fmt.Sprintf("STORE 0x%X to 0x%X", self.Data, self.ToAddress)
 }
 
-func FindCalls(program *Program) { 
+func AnnotateCallsWithConstantAddresses(program *Program) { 
   for _, block := range program.Blocks {
     for _, instruction := range block.Instructions {
       if instruction.Op == CALL ||
@@ -71,7 +71,7 @@ func FindCalls(program *Program) {
   }
 }
 
-func FindSSTOREs(program *Program) {
+func AnnotateSSTOREsWithConstantValues(program *Program) {
   for _, block := range program.Blocks {
     for _, instruction := range block.Instructions {
       if instruction.Op == SSTORE {
