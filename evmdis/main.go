@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"encoding/json"
 )
 
 const swarmHashLength = 43
@@ -21,6 +22,7 @@ func main() {
 	ctorMode := flag.Bool("ctor", false, "Indicates that the provided bytecode has construction(ctor) code included. (needs to be analyzed seperatly)")
 	logging := flag.Bool("log", false, "print logging output")
 	calls := flag.Bool("calls", false, "print hardcoded/constant addresses that are called")
+	json := flag.Bool("json", false, "generate JSON output")
 
 
 	flag.Parse()
@@ -50,7 +52,7 @@ func main() {
 
 	program := evmdis.NewProgram(bytecode[:bytecodeLength])
 	if *ctorMode {
-		AnalyzeProgram(program, false)
+		AnalyzeProgram(program, nil, false)
 		var codeEntryPoint = FindNextCodeEntryPoint(program)
 
 		if codeEntryPoint == 0 {
@@ -62,18 +64,18 @@ func main() {
 		ctor := evmdis.NewProgram(bytecode[:codeEntryPoint])
 		code := evmdis.NewProgram(bytecode[codeEntryPoint:bytecodeLength])
 
-		AnalyzeProgram(ctor, *calls)
-		AnalyzeProgram(code, *calls)
+		AnalyzeProgram(ctor, nil, *calls)
+		AnalyzeProgram(code, ctor, *calls)
 
-		fmt.Println("# Constructor part -------------------------")
-		PrintAnalysisResult(ctor, *calls)
+		fmt.Println("// # Constructor part -------------------------")
+		PrintAnalysisResult(ctor, *calls, *json)
 		
-		fmt.Println("# Code part -------------------------")
-		PrintAnalysisResult(code, *calls)
+		fmt.Println("// # Code part -------------------------")
+		PrintAnalysisResult(code, *calls, *json)
 
 	} else {
-		AnalyzeProgram(program, *calls)
-		PrintAnalysisResult(program, *calls)
+		AnalyzeProgram(program, nil, *calls)
+		PrintAnalysisResult(program, *calls, *json)
 	}
 }
 
@@ -97,7 +99,7 @@ func FindNextCodeEntryPoint(program *evmdis.Program) uint64 {
 	return lastPos
 }
 
-func AnalyzeProgram(program *evmdis.Program, calls bool) {
+func AnalyzeProgram(program *evmdis.Program, ctor *evmdis.Program, calls bool) {
 	if err := evmdis.PerformReachingAnalysis(program); err != nil {
 		panic(fmt.Sprintf("Error performing reaching analysis: %v", err))
 	}
@@ -110,13 +112,13 @@ func AnalyzeProgram(program *evmdis.Program, calls bool) {
 	if calls {
 			evmdis.AnnotateCallsWithConstantAddresses(program)
 			evmdis.AnnotateSSTOREsWithConstantValues(program)
+			evmdis.ResolveSLOADWithConstructorConstants(program, ctor)
 	}
 }
 
 
-func PrintAnalysisResult(program *evmdis.Program, calls bool) {
+func PrintAnalysisResult(program *evmdis.Program, calls bool, asJson bool) {
 	if calls {
-
 		for _, block := range program.Blocks {
 			for _, instruction := range block.Instructions {
 
@@ -125,14 +127,18 @@ func PrintAnalysisResult(program *evmdis.Program, calls bool) {
 				instruction.Annotations.Get(&sto)
 
 				if sto != nil{
-					fmt.Println(sto)
+					log.Println(sto)
 				}
 
 				var call *evmdis.CallOnAddress
 
 				instruction.Annotations.Get(&call)
 
-				if call != nil{
+				if call != nil && asJson {
+					r, _ := json.Marshal(call.ToOutput())
+					fmt.Println(string(r))
+					log.Println(call)
+				} else if call != nil{
 					fmt.Println(call)
 				}
 
@@ -140,6 +146,9 @@ func PrintAnalysisResult(program *evmdis.Program, calls bool) {
 		}
 
 	} else {
+		if asJson {
+			log.Println("json flag not supported without call flag")
+		}
 		PrintHighLevelAsm(program)
 	}	
 }

@@ -18,15 +18,25 @@ type TraceResult struct {
 }
 
 type CallOnAddress struct {
-  Address     *big.Int
-  Trace       *TraceResult
+  Address     *big.Int `json:"address,string"`
+  Call        Instruction `json:"-"`
+  ResolvedSLOAD bool `json:"isResolvedCtorConst,"`
+  Trace       *TraceResult `json:"-"`
+}
+
+type CallOnAddressOut struct {
+  Address             *string `json:"address,string"`
+  CallType            string `json:"callType,string"`
+  IsResolvedCtorConst bool `json:"isResolvedCtorConst,bool"`
+  DependsOnStorage    bool `json:"dependsOnStorage,bool"`
+  DependsOnCalldata   bool` json:"dependsOnCalldata,bool"`
 }
 
 type StoreOn struct {
-  ToAddress       *big.Int
-  Data            *big.Int
-  TraceToAddress  *TraceResult
-  TraceData       *TraceResult
+  ToAddress       *big.Int `json:"to,string"`
+  Data            *big.Int `json:"data,string"`
+  TraceToAddress  *TraceResult `json:"-"`
+  TraceData       *TraceResult `json:"-"`
 }
 
 func (self *TraceResult) String() string {
@@ -36,15 +46,46 @@ func (self *TraceResult) String() string {
 func (self *CallOnAddress) String() string {
   if self.Trace.Inst.Op == CALLDATALOAD {
     return fmt.Sprintf("CALL depends on CALLDATA 0x%X", self.Address)
-  } else if self.Trace.Inst.Op == SLOAD {
+  } else if self.DependsOnStorage() {
     return fmt.Sprintf("CALL depends on SLOAD 0x%X", self.Address)
   } else {
     return fmt.Sprintf("CALL on 0x%X", self.Address)
   }
 }
 
+func (self *CallOnAddress) DependsOnStorage() bool {
+  return self.Trace.Inst.Op == SLOAD && !self.ResolvedSLOAD
+}
+
+func (self *CallOnAddress) DependsOnCalldata() bool {
+  return  self.Trace.Inst.Op == CALLDATALOAD
+}
+
+func (self *CallOnAddress) ToOutput() *CallOnAddressOut {
+  t := new(CallOnAddressOut)
+  if self.Address != nil {
+    bla := fmt.Sprintf("0x%X", self.Address)
+    t.Address = &bla
+  }
+  t.IsResolvedCtorConst = self.ResolvedSLOAD
+  t.CallType = self.Call.Op.String()
+  t.DependsOnStorage = self.DependsOnStorage()
+  t.DependsOnCalldata = self.DependsOnCalldata()
+
+  if t.DependsOnCalldata || t.DependsOnStorage {
+    t.Address = nil
+  }
+  return t
+}
+
 func (self *StoreOn) String() string {
-  return fmt.Sprintf("STORE 0x%X to 0x%X", self.Data, self.ToAddress)
+  if self.TraceData.Inst.Op == CALLDATALOAD {
+    return fmt.Sprintf("STORE CALLDATA 0x%X to 0x%X", self.Data, self.ToAddress)
+  } else if self.TraceData.Inst.Op == SLOAD {
+    return fmt.Sprintf("STORE SLOAD 0x%X to 0x%X", self.Data, self.ToAddress)
+  } else {
+    return fmt.Sprintf("STORE 0x%X to 0x%X", self.Data, self.ToAddress)
+  }
 }
 
 func AnnotateCallsWithConstantAddresses(program *Program) { 
@@ -61,6 +102,8 @@ func AnnotateCallsWithConstantAddresses(program *Program) {
           if tr != nil {
             adr := new(CallOnAddress)
             adr.Address = tr.Arg
+            adr.ResolvedSLOAD = false
+            adr.Call = instruction
             adr.Trace = tr
             instruction.Annotations.Set(&adr)
             log.Println(tr)
@@ -86,14 +129,77 @@ func AnnotateSSTOREsWithConstantValues(program *Program) {
           sto := new(StoreOn)
           sto.ToAddress = trTo.Arg
           sto.Data = trData.Arg
-          sto.TraceToAddress = trData
-          sto.TraceData = trTo
+          sto.TraceToAddress = trTo
+          sto.TraceData = trData
           instruction.Annotations.Set(&sto)
           log.Println(trTo)
           log.Println(trData)
         }
 
       }
+    }
+  }
+}
+
+func getConstantSSTORESs(program *Program) []*StoreOn {
+  var res []*StoreOn
+
+  for _, block := range program.Blocks {
+    for _, instruction := range block.Instructions {
+      var sto *StoreOn
+
+      instruction.Annotations.Get(&sto)
+
+      if sto != nil{
+        res = append(res, sto)
+      }   
+    }
+  }
+  return res
+}
+
+func getCallsOnAddresses(program *Program) []*CallOnAddress {
+  var res []*CallOnAddress
+
+  for _, block := range program.Blocks {
+    for _, instruction := range block.Instructions {
+      var call *CallOnAddress
+
+      instruction.Annotations.Get(&call)
+
+      if call != nil{
+        res = append(res, call)
+      }   
+    }
+  }
+  return res
+}
+
+func findSStoreOn(stores []*StoreOn, adr *big.Int) *StoreOn {
+  for _, s := range stores {
+    if adr != nil && s.ToAddress != nil && s.ToAddress.Cmp(adr) == 0 {
+      return s
+    }
+  }
+  return nil
+}
+
+func ResolveSLOADWithConstructorConstants(program *Program, ctor *Program) {
+  if ctor == nil { return }
+  var SSTORESCtor = getConstantSSTORESs(ctor)
+  var calls = getCallsOnAddresses(program)
+  var SSTORES = getConstantSSTORESs(program)
+
+  for _, c := range calls {
+    if c.DependsOnStorage() {
+        ctorStore := findSStoreOn(SSTORESCtor, c.Trace.Arg)
+        bodyStore := findSStoreOn(SSTORES, c.Trace.Arg)
+        bodyUnknownStore := findSStoreOn(SSTORES, nil)
+
+        if ctorStore != nil && bodyStore == nil && bodyUnknownStore == nil {
+          c.Address = ctorStore.Data
+          c.ResolvedSLOAD = true
+        }
     }
   }
 }
@@ -128,7 +234,9 @@ func findAddressOrDependance(inst *Instruction) (*TraceResult, bool) {
     
     res.SubTrace = traceBackChildren(inst, findNextPushFilter, 2)
 
-    res.Arg = res.SubTrace.Arg
+    if(res.SubTrace != nil) {
+      res.Arg = res.SubTrace.Arg
+    }  
     return res, true
   }
   return nil, false
