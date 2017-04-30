@@ -204,17 +204,18 @@ func ResolveSLOADWithConstructorConstants(program *Program, ctor *Program) {
   }
 }
 
-func getCreatorInstructionOfNthStackElement(instruction *Instruction, argNr int) *Instruction {
+func getCreatorInstructionOfNthStackElement(instruction *Instruction, argNr int) []*Instruction {
   var reaching ReachingDefinition
   instruction.Annotations.Get(&reaching)
 
   if reaching != nil {
-    // IP to loc that created the address stack portion
-    var p *InstructionPointer = reaching[argNr].First()
+    res := make([]*Instruction, 0)
+    for k, _ := range reaching[argNr] {
+      // IP to loc that created the address stack portion
+      res = append(res, k.Get())
+    }
 
-    var inst = p.Get()
-
-    return inst
+    return res
   }
   return nil
 }
@@ -253,22 +254,27 @@ func findNextPushFilter(inst *Instruction) (*TraceResult, bool) {
   return nil, false
 }
 
-func traceBack(instruction *Instruction, filter TraceFilter, maxDepth int) *TraceResult {
-  if maxDepth <= 0 || instruction == nil { return nil }
-  res, done := filter(instruction)
+func traceBack(instructions []*Instruction, filter TraceFilter, maxDepth int) *TraceResult {
+  for _, instruction := range instructions {
+      if maxDepth <= 0 || instruction == nil { return nil }
+      res, done := filter(instruction)
 
-  if done {
-    return res
+      if done {
+        return res
+      }
+      
+      res = traceBackChildren(instruction, filter, maxDepth)
+      if res != nil {
+        return res
+      }
   }
-  
-  return traceBackChildren(instruction, filter, maxDepth)
+  return nil
 }
 
 func traceBackChildren(instruction *Instruction, filter TraceFilter, maxDepth int) *TraceResult {
-  for i := 0; i < instruction.Op.StackReads(); i++ {
-    var inst = getCreatorInstructionOfNthStackElement(instruction, i)
+  for i := 0; i < instruction.Op.StackReads(); i++ { 
 
-    tr := traceBack(inst, filter, maxDepth - 1)
+    tr := traceBack(getCreatorInstructionOfNthStackElement(instruction, i), filter, maxDepth - 1)
     if(tr != nil) {
       return tr
     }
