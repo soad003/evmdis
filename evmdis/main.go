@@ -22,8 +22,8 @@ func main() {
 	ctorMode := flag.Bool("ctor", false, "Indicates that the provided bytecode has construction(ctor) code included. (needs to be analyzed seperatly)")
 	logging := flag.Bool("log", false, "print logging output")
 	calls := flag.Bool("calls", false, "print hardcoded/constant addresses that are called")
-	json := flag.Bool("json", false, "generate JSON output")
-
+	json := flag.Bool("json", false, "generate JSON output, when possible")
+	printSwarm := flag.Bool("printSwarm", false, "prints swarm hash if found, only usefull if swarm is set")
 
 	flag.Parse()
 
@@ -46,8 +46,18 @@ func main() {
 		bytecode[bytecodeLength-2] == swarmHashProgramTrailer[0] &&
 		bytecode[bytecodeLength-43] == swarmHashHeader[0] &&
 		bytecode[bytecodeLength-42] == swarmHashHeader[1] &&
-		*withSwarmHash {
-		bytecodeLength -= swarmHashLength // remove swarm part
+		(*withSwarmHash || *printSwarm) {
+
+		if(*printSwarm && !*json) {
+			fmt.Printf("0x%v\n", hex.EncodeToString(bytecode[bytecodeLength-34:bytecodeLength-2]))
+		} else if (*printSwarm && *json){
+			fmt.Printf("{ \"swarmHash\":\"0x%v\" }\n", hex.EncodeToString(bytecode[bytecodeLength-34:bytecodeLength-2]))
+		}
+		
+		if(*withSwarmHash) {
+			bytecodeLength -= swarmHashLength // remove swarm part
+		}
+
 	}
 
 	program := evmdis.NewProgram(bytecode[:bytecodeLength])
