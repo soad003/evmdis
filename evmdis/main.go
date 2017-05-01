@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"math/big"
 	"encoding/json"
 )
 
@@ -98,7 +99,14 @@ func FindNextCodeEntryPoint(program *evmdis.Program) uint64 {
 
 				instruction.Annotations.Get(&expression)
 
-				arg := expression.(*evmdis.InstructionExpression).Arguments[1].Eval()
+				instExpr, ok := expression.(*evmdis.InstructionExpression)
+				var arg *big.Int
+				if ok {
+					arg = instExpr.Arguments[1].Eval()
+				} else {
+					log.Printf("CODECOPY arg not InstExpr: %v\n", expression)
+				}
+				
 
 				if arg != nil {
 					lastPos = arg.Uint64()
@@ -121,8 +129,9 @@ func AnalyzeProgram(program *evmdis.Program, ctor *evmdis.Program, calls bool) {
 
 	if calls {
 			evmdis.AnnotateCallsWithConstantAddresses(program)
-			evmdis.AnnotateSSTOREsWithConstantValues(program)
-			evmdis.ResolveSLOADWithConstructorConstants(program, ctor)
+			log.Println("DONE WITH CALLS")
+			//evmdis.AnnotateSSTOREsWithConstantValues(program)
+			//evmdis.ResolveSLOADWithConstructorConstants(program, ctor)
 	}
 }
 

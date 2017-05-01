@@ -30,6 +30,7 @@ type CallOnAddressOut struct {
   IsResolvedCtorConst bool `json:"isResolvedCtorConst,bool"`
   DependsOnStorage    bool `json:"dependsOnStorage,bool"`
   DependsOnCalldata   bool` json:"dependsOnCalldata,bool"`
+  DependsOnUnknown   bool` json:"dependsOnUnknown,bool"`
 }
 
 type StoreOn struct {
@@ -44,22 +45,39 @@ func (self *TraceResult) String() string {
 }
 
 func (self *CallOnAddress) String() string {
-  if self.Trace.Inst.Op == CALLDATALOAD {
+  if self.DependsOnCalldata() {
     return fmt.Sprintf("CALL depends on CALLDATA 0x%X", self.Address)
   } else if self.DependsOnStorage() {
     return fmt.Sprintf("CALL depends on SLOAD 0x%X", self.Address)
-  } else {
+  } else if self.FoundConst() {
     return fmt.Sprintf("CALL on 0x%X", self.Address)
+  } else {
+    return fmt.Sprintf("CALL depends on unknown", self.Address)
   }
 }
 
 func (self *CallOnAddress) DependsOnStorage() bool {
+  if self.Trace == nil {
+    return false
+  }
   return self.Trace.Inst.Op == SLOAD && !self.ResolvedSLOAD
 }
 
 func (self *CallOnAddress) DependsOnCalldata() bool {
+  if self.Trace == nil {
+    return false
+  }
   return  self.Trace.Inst.Op == CALLDATALOAD
 }
+
+func (self *CallOnAddress) DependsOnUnknown() bool {
+  return  !self.FoundConst() && self.Trace == nil
+}
+
+func (self *CallOnAddress) FoundConst() bool {
+  return self.Address != nil
+}
+
 
 func (self *CallOnAddress) ToOutput() *CallOnAddressOut {
   t := new(CallOnAddressOut)
@@ -71,6 +89,7 @@ func (self *CallOnAddress) ToOutput() *CallOnAddressOut {
   t.CallType = self.Call.Op.String()
   t.DependsOnStorage = self.DependsOnStorage()
   t.DependsOnCalldata = self.DependsOnCalldata()
+  t.DependsOnUnknown = self.DependsOnUnknown()
 
   if t.DependsOnCalldata || t.DependsOnStorage {
     t.Address = nil
@@ -99,15 +118,16 @@ func AnnotateCallsWithConstantAddresses(program *Program) {
 
           tr := traceBack(getCreatorInstructionOfNthStackElement(&instruction, 1), findAddressOrDependance, maxTraceDepth)
 
+          adr := new(CallOnAddress)
+          
+          adr.ResolvedSLOAD = false
+          adr.Call = instruction
           if tr != nil {
-            adr := new(CallOnAddress)
             adr.Address = tr.Arg
-            adr.ResolvedSLOAD = false
-            adr.Call = instruction
             adr.Trace = tr
-            instruction.Annotations.Set(&adr)
             log.Println(tr)
           }
+          instruction.Annotations.Set(&adr)
       
       }
     }
@@ -212,6 +232,7 @@ func getCreatorInstructionOfNthStackElement(instruction *Instruction, argNr int)
     res := make([]*Instruction, 0)
     for k, _ := range reaching[argNr] {
       // IP to loc that created the address stack portion
+      log.Println("%v\n", k.Get())
       res = append(res, k.Get())
     }
 
