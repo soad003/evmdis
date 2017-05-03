@@ -23,7 +23,7 @@ func main() {
 	ctorMode := flag.Bool("ctor", false, "Indicates that the provided bytecode has construction(ctor) code included. (needs to be analyzed seperatly)")
 	logging := flag.Bool("log", false, "print logging output")
 	calls := flag.Bool("calls", false, "print hardcoded/constant addresses that are called")
-	json := flag.Bool("json", false, "generate JSON output, when possible")
+	asjson := flag.Bool("json", false, "generate JSON output, when possible")
 	printSwarm := flag.Bool("printSwarm", false, "prints swarm hash if found, only usefull if swarm is set")
 
 	flag.Parse()
@@ -49,16 +49,26 @@ func main() {
 		bytecode[bytecodeLength-42] == swarmHashHeader[1] &&
 		(*withSwarmHash || *printSwarm) {
 
-		if(*printSwarm && !*json) {
-			fmt.Printf("0x%v\n", hex.EncodeToString(bytecode[bytecodeLength-34:bytecodeLength-2]))
-		} else if (*printSwarm && *json){
-			fmt.Printf("{ \"swarmHash\":\"0x%v\" }\n", hex.EncodeToString(bytecode[bytecodeLength-34:bytecodeLength-2]))
+		hashstr := hex.EncodeToString(bytecode[bytecodeLength-34:bytecodeLength-2])
+		if(*printSwarm && !*asjson) {
+			fmt.Printf("0x%v\n", hashstr)
+		} else if (*printSwarm && *asjson){
+			data := struct {
+							    SwarmHash string `json:"swarmHash,string"`
+							}{
+							    hashstr,
+							}
+			r, _ := json.MarshalIndent(data, "", "    ")
+			fmt.Println(string(r))
 		}
 		
 		if(*withSwarmHash) {
 			bytecodeLength -= swarmHashLength // remove swarm part
 		}
+	}
 
+	if(*printSwarm) {
+		return 
 	}
 
 	program := evmdis.NewProgram(bytecode[:bytecodeLength])
@@ -79,14 +89,14 @@ func main() {
 		AnalyzeProgram(code, ctor, *calls)
 
 		fmt.Println("// # Constructor part -------------------------")
-		PrintAnalysisResult(ctor, *calls, *json)
+		PrintAnalysisResult(ctor, *calls, *asjson)
 		
 		fmt.Println("// # Code part -------------------------")
-		PrintAnalysisResult(code, *calls, *json)
+		PrintAnalysisResult(code, *calls, *asjson)
 
 	} else {
 		AnalyzeProgram(program, nil, *calls)
-		PrintAnalysisResult(program, *calls, *json)
+		PrintAnalysisResult(program, *calls, *asjson)
 	}
 }
 
@@ -106,7 +116,6 @@ func FindNextCodeEntryPoint(program *evmdis.Program) uint64 {
 				} else {
 					log.Printf("CODECOPY arg not InstExpr: %v\n", expression)
 				}
-				
 
 				if arg != nil {
 					lastPos = arg.Uint64()
@@ -129,15 +138,15 @@ func AnalyzeProgram(program *evmdis.Program, ctor *evmdis.Program, calls bool) {
 
 	if calls {
 			evmdis.AnnotateCallsWithConstantAddresses(program)
-			log.Println("DONE WITH CALLS")
-			//evmdis.AnnotateSSTOREsWithConstantValues(program)
-			//evmdis.ResolveSLOADWithConstructorConstants(program, ctor)
+			evmdis.AnnotateSSTOREsWithConstantValues(program)
+			evmdis.ResolveSLOADWithConstructorConstants(program, ctor)
 	}
 }
 
 
 func PrintAnalysisResult(program *evmdis.Program, calls bool, asJson bool) {
 	if calls {
+		jsondata := make([]*evmdis.CallOnAddressOut, 0)
 		for _, block := range program.Blocks {
 			for _, instruction := range block.Instructions {
 
@@ -154,16 +163,18 @@ func PrintAnalysisResult(program *evmdis.Program, calls bool, asJson bool) {
 				instruction.Annotations.Get(&call)
 
 				if call != nil && asJson {
-					r, _ := json.Marshal(call.ToOutput())
-					fmt.Println(string(r))
+					jsondata = append(jsondata, call.ToOutput())
 					log.Println(call)
 				} else if call != nil{
 					fmt.Println(call)
 				}
-
 			}
 		}
 
+		if asJson {
+			r, _ := json.MarshalIndent(jsondata, "", "    ")
+			fmt.Println(string(r))
+		}
 	} else {
 		if asJson {
 			log.Println("json flag not supported without call flag")
