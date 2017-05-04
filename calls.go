@@ -18,15 +18,15 @@ type TraceResult struct {
 }
 
 type CallOnAddress struct {
-  Address     *big.Int `json:"address,string"`
+  Address     *big.Int `json:"address"`
   Call        Instruction `json:"-"`
   ResolvedSLOAD bool `json:"isResolvedCtorConst,"`
   Trace       *TraceResult `json:"-"`
 }
 
 type CallOnAddressOut struct {
-  Address             *string `json:"address,string"`
-  CallType            string `json:"callType,string"`
+  Address             *string `json:"address"`
+  CallType            string `json:"callType"`
   IsResolvedCtorConst bool `json:"isResolvedCtorConst,bool"`
   DependsOnStorage    bool `json:"dependsOnStorage,bool"`
   DependsOnCalldata   bool` json:"dependsOnCalldata,bool"`
@@ -34,8 +34,8 @@ type CallOnAddressOut struct {
 }
 
 type StoreOn struct {
-  ToAddress       *big.Int `json:"to,string"`
-  Data            *big.Int `json:"data,string"`
+  ToAddress       *big.Int `json:"to"`
+  Data            *big.Int `json:"data"`
   TraceToAddress  *TraceResult `json:"-"`
   TraceData       *TraceResult `json:"-"`
 }

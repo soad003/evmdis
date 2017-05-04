@@ -121,7 +121,7 @@ func HandleSwarm(bytecode []byte, printSwarm bool, withSwarmHash bool, asJson bo
 func PrintParams(params []byte, asJson bool) {
 	if asJson {
 		data := struct {
-						    ParamBlob string `json:"paramBlob,string"`
+						    ParamBlob string `json:"paramBlob"`
 						}{
 						    fmt.Sprintf("%X", params),
 						}
@@ -154,7 +154,7 @@ func PrintSwarm(hashstr string, asJson bool) {
 		fmt.Printf("%v\n", hashstr)
 	} else {
 		data := struct {
-						    SwarmHash string `json:"swarmHash,string"`
+						    SwarmHash string `json:"swarmHash"`
 						}{
 						    hashstr,
 						}
