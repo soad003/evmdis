@@ -47,8 +47,6 @@ func main() {
 			flag.Usage()
 	}
 
-
-
 	if !*logging {
 		log.SetOutput(ioutil.Discard)
 	}
@@ -62,7 +60,6 @@ func main() {
 	bytecode := make([]byte, bytecodeLength)
 
 	hex.Decode(bytecode, hexdata)
-
 	
 	if *ctorMode {
 		program := evmdis.NewProgram(bytecode)
@@ -119,11 +116,21 @@ func HandleSwarm(bytecode []byte, printSwarm bool, withSwarmHash bool, asJson bo
 }
 
 func PrintParams(params []byte, asJson bool) {
+	if len(params) % 32 != 0 {
+		panic("params length must be multiple of 32")
+	}
 	if asJson {
+		params_data := make([]*string, 0)
+		for i := 0; i < len(params); i=i+32 {
+			chunk :=  fmt.Sprintf("%X", params[i:i+32])
+			params_data = append(params_data, &chunk)
+		}
 		data := struct {
 						    ParamBlob string `json:"paramBlob"`
+						    Params []*string `json:"params"`
 						}{
 						    fmt.Sprintf("%X", params),
+						    params_data,
 						}
 		r, _ := json.MarshalIndent(data, "", "    ")
 		fmt.Println(string(r))
@@ -193,6 +200,9 @@ func FindNextCodeEntryPoint(program *evmdis.Program) (uint64, uint64) {
 			}
 		}
 	}
+	if lastPos == firstPos {
+		firstPos =0
+	}
 	return lastPos, firstPos
 }
 
@@ -247,7 +257,7 @@ func PrintAnalysisResult(program *evmdis.Program, calls bool, asJson bool) {
 		}
 	} else {
 		if asJson {
-			log.Println("json flag not supported without call flag")
+			log.Println("json flag not supported without calls flag")
 		}
 		PrintHighLevelAsm(program)
 	}	
