@@ -92,11 +92,25 @@ func main() {
 		AnalyzeProgram(ctor, nil, calls)
 		AnalyzeProgram(code, ctor, calls)
 
-		fmt.Println("// # Constructor part -------------------------")
+		if !*asJson {
+			fmt.Println("// # Constructor part -------------------------")
+		}	else {
+			fmt.Print("{ \"ctor\": ")
+		}
 		PrintAnalysisResult(ctor, calls, *asJson)
+		if *asJson {
+			fmt.Print(",")
+		}
 		
-		fmt.Println("// # Code part -------------------------")
+		if !*asJson {
+			fmt.Println("// # Code part -------------------------")
+		} else {
+			fmt.Print("\"code\": ")
+		}
 		PrintAnalysisResult(code, calls, *asJson)
+		if *asJson {
+			fmt.Print("}")
+		}
 
 	} else {
 		bytecode_new := HandleSwarm(bytecode, printSwarm, *withSwarmHash, *asJson)
@@ -253,7 +267,7 @@ func PrintAnalysisResult(program *evmdis.Program, calls bool, asJson bool) {
 
 		if asJson {
 			r, _ := json.MarshalIndent(jsondata, "", "    ")
-			fmt.Println(string(r))
+			fmt.Print(string(r))
 		}
 	} else {
 		if asJson {
