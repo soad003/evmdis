@@ -27,11 +27,12 @@ func main() {
 	calls := false
 	printSwarm := false
 	printParams := false
+	dump := false
 	//calls := flag.Bool("calls", false, "print hardcoded/constant addresses that are called")
 	//printSwarm := flag.Bool("printSwarm", false, "prints swarm hash if found, only useful if swarm is set")
 	//printParams := flag.Bool("printParams", false, "prints params if found")
 
-	output := flag.String("output", "asm", "defines the output expected { asm | swarmHash | params | calls } (default asm)")
+	output := flag.String("output", "asm", "defines the output expected { asm | swarmHash | params | calls | dump } (default asm)")
 
 	flag.Parse()
 
@@ -43,6 +44,8 @@ func main() {
 			printParams = true
 		case "calls":
 			calls = true
+		case "dump":
+			dump=true
 		default:
 			flag.Usage()
 	}
@@ -60,6 +63,16 @@ func main() {
 	bytecode := make([]byte, bytecodeLength)
 
 	hex.Decode(bytecode, hexdata)
+
+	if dump {
+		program := evmdis.NewProgram(bytecode)
+		for _, block := range program.Blocks {
+			for _, instruction := range block.Instructions {
+				fmt.Println(instruction.String())
+			}
+		}
+		os.Exit(0)
+	}
 	
 	if *ctorMode {
 		program := evmdis.NewProgram(bytecode)
