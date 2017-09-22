@@ -4,9 +4,10 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/Arachnid/evmdis"
+	"github.com/soad003/evmdis"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"os"
 )
 
@@ -95,11 +96,14 @@ func FindNextCodeEntryPoint(program *evmdis.Program) uint64 {
 }
 
 func isERC20(prog *evmdis.Program) bool {
+	var methSig []*big.Int
 	for _, block := range prog.Blocks {
-		for i, inst := range block.Instructions {
-			if instruction.Op == evmdis.PUSH4 {
+		for _, inst := range block.Instructions {
+			if inst.Op == evmdis.PUSH4 {
 
-				fmt.Printf(instruction)
+				methSig = append(methSig, inst.Arg)
+
+				fmt.Println(toHexInt(inst.Arg))
 
 /*				var expression evmdis.Expression
 
@@ -114,11 +118,30 @@ func isERC20(prog *evmdis.Program) bool {
 			}
 		}
 	}
-	return true
+	return hasSig(methSig, big.NewInt(3714247998)) && //"dd62ed3e": "allowance(address,address)", dec:3714247998
+		   hasSig(methSig, big.NewInt(157198259)) && //"095ea7b3": "approve(address,uint256)", dec: 157198259
+		   hasSig(methSig, big.NewInt(1889567281)) && //"70a08231": "balanceOf(address)", dec: 1889567281
+		   hasSig(methSig, big.NewInt(404098525)) && //"18160ddd": "totalSupply()", dec: 404098525
+		   hasSig(methSig, big.NewInt(2835717307)) && //"a9059cbb": "transfer(address,uint256)", dec: 2835717307
+		   hasSig(methSig, big.NewInt(599290589)) //"23b872dd": "transferFrom(address,address,uint256)", dec: 599290589
+
 }
 
+ func hasSig(list []*big.Int, str *big.Int) bool {
+ 	for _, v := range list {
+ 		if v.Cmp(str) == 0 {
+ 			return true
+ 		}
+ 	}
+ 	return false
+ }
+
+func toHexInt(n *big.Int) string {
+    return fmt.Sprintf("%x", n) // or %X or upper case
+}
 
 func PrintAnalysisResult(program *evmdis.Program) {
+	fmt.Println(isERC20(program))
 /*	for _, block := range program.Blocks {
 		offset := block.Offset
 
@@ -151,14 +174,13 @@ func PrintAnalysisResult(program *evmdis.Program) {
 	}*/
 }
 
-func AnalyzeProgram(program *evmdis.Program) {
-	isERC20(program)
-/*	if err := evmdis.PerformReachingAnalysis(program); err != nil {
+func AnalyzeProgram(program *evmdis.Program) {	
+	if err := evmdis.PerformReachingAnalysis(program); err != nil {
 		panic(fmt.Sprintf("Error performing reaching analysis: %v", err))
 	}
 	evmdis.PerformReachesAnalysis(program)
 	evmdis.CreateLabels(program)
 	if err := evmdis.BuildExpressions(program); err != nil {
 		panic(fmt.Sprintf("Error building expressions: %v", err))
-	}*/
+	}
 }
