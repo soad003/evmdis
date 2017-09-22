@@ -94,8 +94,32 @@ func FindNextCodeEntryPoint(program *evmdis.Program) uint64 {
 	return lastPos
 }
 
+func isERC20(prog *evmdis.Program) bool {
+	for _, block := range prog.Blocks {
+		for i, inst := range block.Instructions {
+			if instruction.Op == evmdis.PUSH4 {
+
+				fmt.Printf(instruction)
+
+/*				var expression evmdis.Expression
+
+				instruction.Annotations.Get(&expression)
+
+				arg := expression.(*evmdis.InstructionExpression).Arguments[1].Eval()
+
+				if arg != nil {
+					lastPos = arg.Uint64()
+				}*/
+
+			}
+		}
+	}
+	return true
+}
+
+
 func PrintAnalysisResult(program *evmdis.Program) {
-	for _, block := range program.Blocks {
+/*	for _, block := range program.Blocks {
 		offset := block.Offset
 
 		// Print out the jump label for the block, if there is one
@@ -124,16 +148,17 @@ func PrintAnalysisResult(program *evmdis.Program) {
 			offset += instruction.Op.OperandSize() + 1
 		}
 		fmt.Printf("\n")
-	}
+	}*/
 }
 
 func AnalyzeProgram(program *evmdis.Program) {
-	if err := evmdis.PerformReachingAnalysis(program); err != nil {
+	isERC20(program)
+/*	if err := evmdis.PerformReachingAnalysis(program); err != nil {
 		panic(fmt.Sprintf("Error performing reaching analysis: %v", err))
 	}
 	evmdis.PerformReachesAnalysis(program)
 	evmdis.CreateLabels(program)
 	if err := evmdis.BuildExpressions(program); err != nil {
 		panic(fmt.Sprintf("Error building expressions: %v", err))
-	}
+	}*/
 }
