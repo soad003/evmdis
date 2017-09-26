@@ -110,7 +110,7 @@ func main() {
 		if(!*json) { fmt.Println("# Constructor part -------------------------") }
 		PrintAnalysisResult(ctor, *json)*/
 
-		AnalyzeProgram(code)
+		//AnalyzeProgram(code)
 		if(!*json) { fmt.Println("# Code part -------------------------") }
 		PrintAnalysisResult(code, *json)
 	}
